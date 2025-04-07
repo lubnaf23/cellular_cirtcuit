@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starry Circuit Cellular Automaton</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000000;
+            font-family: Arial, sans-serif;
+        }
+        #canvas {
+            display: block;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+        }
+        button {
+            background: #4a4a7d;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5d5d9e;
+        }
+        input[type="range"] {
+            width: 100%;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="controls">
+        <h3>Starry Circuit Automaton</h3>
+        <button id="resetBtn">Reset</button>
+        <button id="pauseBtn">Pause</button>
+        <div class="slider-container">
+            <label for="swirlProbability">Swirl Probability: <span id="swirlProbValue">0.001</span></label>
+            <input type="range" id="swirlProbability" min="0" max="0.01" step="0.0001" value="0.001">
+        </div>
+        <div class="slider-container">
+            <label for="swirlStrength">Swirl Strength: <span id="swirlStrengthValue">0.7</span></label>
+            <input type="range" id="swirlStrength" min="0.1" max="2" step="0.1" value="0.7">
+        </div>
+        <div class="slider-container">
+            <label for="fadeRate">Fade Rate: <span id="fadeRateValue">0.95</span></label>
+            <input type="range" id="fadeRate" min="0.8" max="0.99" step="0.01" value="0.95">
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas to full window size
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        // Cell size
+        const cellSize = 2;
+        const cols = Math.ceil(canvas.width / cellSize);
+        const rows = Math.ceil(canvas.height / cellSize);
+        
+        // State variables
+        let grid = [];
+        let nextGrid = [];
+        let isRunning = true;
+        
+        // Parameters (can be adjusted)
+        let swirlProbability = 0.001;
+        let swirlStrength = 0.7;
+        let fadeRate = 0.95;
+        
+        // Color palette inspired by Starry Night
+        const colors = {
+            background: [18,16,32], // dark blue
+            stars: [255, 253, 170], // yellow
+            swirls: [
+                [65, 105, 225],   // royal blue
+                [30, 144, 255],   // dodger blue
+                [0, 191, 255],    // deep sky blue
+                [70, 130, 180],   // steel blue
+                [135, 206, 235],  // sky blue
+                [135, 206, 250],  // light sky blue
+                [176, 196, 222],  // light steel blue
+                [255, 253, 170],  // yellow
+                [255, 215, 0],    // gold
+                [255, 165, 0],    // orange
+                [255, 69, 0]      // red-orange
+            ]
+        };
+        
+        // Initialize the grid with all cells inactive
+        function initializeGrid() {
+            grid = new Array(cols);
+            nextGrid = new Array(cols);
+            
+            for (let x = 0; x < cols; x++) {
+                grid[x] = new Array(rows);
+                nextGrid[x] = new Array(rows);
+                
+                for (let y = 0; y < rows; y++) {
+                    grid[x][y] = {
+                        state: 0,
+                        intensity: 0,
+                        direction: Math.random() * Math.PI * 2,
+                        color: Math.floor(Math.random() * colors.swirls.length)
+                    };
+                    nextGrid[x][y] = { ...grid[x][y] };
+                }
+            }
+        }
+        
+        // Calculate the next state of the grid
+        function updateGrid() {
+            // First, copy the current grid to the next grid
+            for (let x = 0; x < cols; x++) {
+                for (let y = 0; y < rows; y++) {
+                    nextGrid[x][y] = { ...grid[x][y] };
+                    
+                    // Randomly start new swirls
+                    if (grid[x][y].state === 0 && Math.random() < swirlProbability) {
+                        nextGrid[x][y].state = 1;
+                        nextGrid[x][y].intensity = 1;
+                        nextGrid[x][y].direction = Math.random() * Math.PI * 2;
+                        nextGrid[x][y].color = Math.floor(Math.random() * colors.swirls.length);
+                    }
+                    
+                    // Update existing swirls
+                    else if (grid[x][y].state === 1 || grid[x][y].state === 2) {
+                        // Propagate swirl to neighbors
+                        // Calculate direction vectors
+                        const dx = Math.cos(grid[x][y].direction) * swirlStrength;
+                        const dy = Math.sin(grid[x][y].direction) * swirlStrength;
+                        
+                        // Get target coordinates with direction and intensity
+                        const tx = Math.round(x + dx);
+                        const ty = Math.round(y + dy);
+                        
+                        // Check if target is valid
+                        if (tx >= 0 && tx < cols && ty >= 0 && ty < rows) {
+                            // Propagate swirl with slightly changed direction
+                            if (grid[tx][ty].state === 0 || grid[tx][ty].intensity < grid[x][y].intensity * 0.9) {
+                                nextGrid[tx][ty].state = 2;
+                                nextGrid[tx][ty].intensity = grid[x][y].intensity * 0.95;
+                                nextGrid[tx][ty].direction = grid[x][y].direction + (Math.random() * 0.5 - 0.25);
+                                nextGrid[tx][ty].color = grid[x][y].color;
+                            }
+                        }
+                        
+                        // Current cell starts to fade
+                        nextGrid[x][y].state = 3;
+                        nextGrid[x][y].intensity *= fadeRate;
+                    }
+                    
+                    // Gradually fade swirls
+                    else if (grid[x][y].state === 3) {
+                        nextGrid[x][y].intensity *= fadeRate;
+                        
+                        // If intensity is very low, return to inactive state
+                        if (nextGrid[x][y].intensity < 0.05) {
+                            nextGrid[x][y].state = 0;
+                            nextGrid[x][y].intensity = 0;
+                        }
+                    }
+                }
+            }
+            
+            // Swap grids
+            [grid, nextGrid] = [nextGrid, grid];
+        }
+        
+        // Draw the grid on the canvas
+        function drawGrid() {
+            // Draw background
+            ctx.fillStyle = `rgb(${colors.background[0]}, ${colors.background[1]}, ${colors.background[2]})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw cells
+            for (let x = 0; x < cols; x++) {
+                for (let y = 0; y < rows; y++) {
+                    if (grid[x][y].state !== 0) {
+                        const colorIndex = grid[x][y].color;
+                        const intensity = grid[x][y].intensity;
+                        
+                        // Get base color from the swirls palette
+                        const baseColor = colors.swirls[colorIndex];
+                        
+                        // Blend with star color based on intensity
+                        const r = Math.floor(baseColor[0] * (1 - intensity) + colors.stars[0] * intensity);
+                        const g = Math.floor(baseColor[1] * (1 - intensity) + colors.stars[1] * intensity);
+                        const b = Math.floor(baseColor[2] * (1 - intensity) + colors.stars[2] * intensity);
+                        
+                        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${intensity})`;
+                        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+                    }
+                }
+            }
+        }
+        
+        // Main animation loop
+        function animate() {
+            if (isRunning) {
+                updateGrid();
+            }
+            drawGrid();
+            requestAnimationFrame(animate);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            initializeGrid();
+        });
+        
+        // Event listeners for controls
+        document.getElementById('resetBtn').addEventListener('click', initializeGrid);
+        
+        document.getElementById('pauseBtn').addEventListener('click', function() {
+            isRunning = !isRunning;
+            this.textContent = isRunning ? 'Pause' : 'Resume';
+        });
+        
+        document.getElementById('swirlProbability').addEventListener('input', function() {
+            swirlProbability = parseFloat(this.value);
+            document.getElementById('swirlProbValue').textContent = swirlProbability.toFixed(4);
+        });
+        
+        document.getElementById('swirlStrength').addEventListener('input', function() {
+            swirlStrength = parseFloat(this.value);
+            document.getElementById('swirlStrengthValue').textContent = swirlStrength.toFixed(1);
+        });
+        
+        document.getElementById('fadeRate').addEventListener('input', function() {
+            fadeRate = parseFloat(this.value);
+            document.getElementById('fadeRateValue').textContent = fadeRate.toFixed(2);
+        });
+        
+        // Initialize and start
+        initializeGrid();
+        animate();
+    </script>
+</body>
+</html>
